@@ -70,8 +70,26 @@ def validate_input(job_input):
     if not isinstance(upload_path, str):
         return None, "Upload s3 path is not provided"
 
+    lora_download_path = job_input.get("lora_download_path")
+    if not isinstance(lora_download_path, str):
+        return None, "Lora download path is not provided"
+
+    lora_params = job_input.get("lora_params")
+    if not isinstance(lora_params, dict):
+        return None, "Lora params is not provided"
+
+    prompt = lora_params.get("prompt")
+    if not isinstance(prompt, str):
+        return None, "Prompt is not provided"
+
     # Return validated data and no error
-    return {"workflow": workflow, "images_s3_paths": images_s3_paths, "upload_path": upload_path}, None
+    return {
+        "workflow": workflow,
+        "lora_download_path": lora_download_path,
+        "images_s3_paths": images_s3_paths,
+        "upload_path": upload_path,
+        "lora_params": lora_params
+    }, None
 
 
 def check_server(url, retries=500, delay=50):
@@ -260,15 +278,12 @@ def handler(job):
 
     # Extract validated data
     workflow = validated_data["workflow"]
-    try:
-        prompt: str | None = validated_data["lora_params"]["prompt"]
-    except (KeyError, AttributeError):
-        prompt = None
-    workflow = modify_workflow(workflow, prompt)
-
+    prompt: str = validated_data["lora_params"]["prompt"]
     images_s3_paths: str | None = validated_data.get("images_s3_paths")
     upload_path = validated_data["upload_path"]
-    lora_download_path =  validated_data["lora_download_path"]
+    lora_download_path = validated_data["lora_download_path"]
+
+    workflow = modify_workflow(workflow, prompt)
 
     # Make sure that the ComfyUI API is available
     check_server(

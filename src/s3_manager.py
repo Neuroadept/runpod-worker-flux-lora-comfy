@@ -36,6 +36,7 @@ class S3Manager:
         """
         try:
             local_path.parent.mkdir(parents=True, exist_ok=True)
+            self.logger.info(f"Started downloading {s3_key} to {local_path}")
             self.s3_client.download_file(self.bucket_name, s3_key, str(local_path))
             self.logger.info(f"Downloaded {s3_key} to {local_path}")
         except Exception as e:
