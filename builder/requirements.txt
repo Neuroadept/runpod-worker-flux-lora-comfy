@@ -1,0 +1,5 @@
+# Required Python packages get listed here, one per line.
+# Reccomended to lock the version number to avoid unexpected changes.
+
+runpod==1.7.7
+boto3==1.36.19
