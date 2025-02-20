@@ -249,8 +249,6 @@ def process_output_images(upload_path: str):
 
 
 def modify_workflow(wf: dict, prompt: str | None):
-    wf["4"]["inputs"]["ckpt_name"] = UNET_NAME
-    wf["10"]["inputs"]["lora_name"] = LORA_NAME
     if prompt is not None:
         wf["6"]["inputs"]["text"] = prompt
     return wf
