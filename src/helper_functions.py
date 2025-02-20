@@ -27,6 +27,7 @@ def prepare_input_images_contextmanager(imgs_path: str | None, imgs_in_s3: bool,
 
 @contextmanager
 def temp_folder(folder_path: Path) -> None:
+    shutil.rmtree(folder_path, ignore_errors=True)
     folder_path.mkdir(parents=True, exist_ok=True)
     try:
         yield

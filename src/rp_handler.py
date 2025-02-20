@@ -7,9 +7,8 @@ import os
 import requests
 import base64
 from io import BytesIO
-from pathlib import Path
 
-from constants import INPUT_IMGS_DIR, COMFY_OUTPUT_PATH
+from constants import INPUT_IMGS_DIR, COMFY_OUTPUT_PATH, LOCAL_LORA_PATH, LORA_NAME, UNET_NAME
 from helper_functions import prepare_input_images_contextmanager, image_to_base64, temp_folder
 from s3_manager import S3Manager
 
@@ -231,6 +230,14 @@ def process_output_images(upload_path: str):
         }
 
 
+def modify_workflow(wf: dict, prompt: str | None):
+    wf["4"]["inputs"]["ckpt_name"] = UNET_NAME
+    wf["10"]["inputs"]["lora_name"] = LORA_NAME
+    if prompt is not None:
+        wf["6"]["inputs"]["text"] = prompt
+    return wf
+
+
 def handler(job):
     """
     The main function that handles a job of generating an image.
@@ -253,8 +260,15 @@ def handler(job):
 
     # Extract validated data
     workflow = validated_data["workflow"]
+    try:
+        prompt: str | None = validated_data["lora_params"]["prompt"]
+    except (KeyError, AttributeError):
+        prompt = None
+    workflow = modify_workflow(workflow, prompt)
+
     images_s3_paths: str | None = validated_data.get("images_s3_paths")
     upload_path = validated_data["upload_path"]
+    lora_download_path =  validated_data["lora_download_path"]
 
     # Make sure that the ComfyUI API is available
     check_server(
@@ -279,15 +293,16 @@ def handler(job):
             return upload_result
 
     # Queue the workflow
-    try:
-        queued_workflow = queue_workflow(workflow)
-        prompt_id = queued_workflow["prompt_id"]
-        print(f"runpod-worker-comfy - queued workflow with ID {prompt_id}")
-    except Exception as e:
-        return {"error": f"Error queuing workflow: {str(e)}", "refresh_worker": True}
+    with temp_folder(LOCAL_LORA_PATH.parent), temp_folder(COMFY_OUTPUT_PATH):
+        try:
+            s3_manager.download_file(s3_key=lora_download_path, local_path=LOCAL_LORA_PATH)
+            queued_workflow = queue_workflow(workflow)
+            prompt_id = queued_workflow["prompt_id"]
+            print(f"runpod-worker-comfy - queued workflow with ID {prompt_id}")
+        except Exception as e:
+            return {"error": f"Error queuing workflow: {str(e)}", "refresh_worker": True}
 
-    # Poll for completion
-    with temp_folder(COMFY_OUTPUT_PATH):
+        # Poll for completion
         print(f"runpod-worker-comfy - wait until image generation is complete")
         retries = 0
         try:
@@ -309,9 +324,9 @@ def handler(job):
         # Get the generated image and return it as URL in an AWS bucket or as base64
         images_result = process_output_images(upload_path=upload_path)
 
-    result = {**images_result, "refresh_worker": REFRESH_WORKER}
+        result = {**images_result, "refresh_worker": REFRESH_WORKER}
 
-    return result
+        return result
 
 
 # Start the handler only if this script is run directly
