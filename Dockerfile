@@ -28,28 +28,39 @@ ENV PYTHONUNBUFFERED=1
 # Speed up some cmake builds
 ENV CMAKE_BUILD_PARALLEL_LEVEL=8
 
+# install apt dependencies
 RUN apt-get -qq update && \
     apt-get -qq install -y --no-install-recommends \
-    libgl1 ffmpeg libsm6 libxext6 git && \
+    libgl1 ffmpeg libsm6 libxext6 git wget && \
     apt-get autoremove -y && \
     apt-get clean -y && \
     rm -rf /var/lib/apt/lists/*
 
+# install comfy
 RUN pip install comfy-cli==1.3.7 && \
     comfy --skip-prompt --workspace /comfyui install --cuda-version 12.4 --nvidia --version 0.3.14
 
+# install worker python dependencies
 WORKDIR /
 COPY builder/requirements.txt /requirements.txt
 RUN pip install -r requirements.txt --no-cache-dir && \
     rm /requirements.txt
 
+# add source code
 ADD src /src
 
+# restore the snapshot
 ADD *snapshot*.json /
 RUN chmod +x /src/start.sh /src/restore_snapshot.sh
 RUN /src/restore_snapshot.sh
 
+# modifying model paths for comfy
 ADD extra_model_paths.yaml /comfyui
-# RUN touch /models/loras/
+
+# add yandex ssl
+RUN mkdir -p /usr/local/share/ca-certificates/Yandex && \
+    wget "https://storage.yandexcloud.net/cloud-certs/CA.pem" \
+       --output-document /usr/local/share/ca-certificates/Yandex/YandexInternalRootCA.crt && \
+    chmod 0655 /usr/local/share/ca-certificates/Yandex/YandexInternalRootCA.crt
 
 CMD ["/src/start.sh"]

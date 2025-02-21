@@ -10,8 +10,8 @@ from io import BytesIO
 
 from constants import INPUT_IMGS_DIR, COMFY_OUTPUT_PATH, LOCAL_LORA_PATH, LORA_NAME, UNET_NAME
 from helper_functions import prepare_input_images_contextmanager, image_to_base64, temp_folder
+from kafka_producer_manager import check_kafka_creds, kafka_manager, push_inference_completed_msg
 from s3_manager import S3Manager
-
 
 # Time to wait between API check attempts in milliseconds
 COMFY_API_AVAILABLE_INTERVAL_MS = 50
@@ -82,13 +82,18 @@ def validate_input(job_input):
     if not isinstance(prompt, str):
         return None, "Prompt is not provided"
 
+    chat_id = job_input.get("chat_id")
+    if not isinstance(upload_path, int):
+        return None, "chat_id is not provided or not int"
+
     # Return validated data and no error
     return {
         "workflow": workflow,
         "lora_download_path": lora_download_path,
         "images_s3_paths": images_s3_paths,
         "upload_path": upload_path,
-        "lora_params": lora_params
+        "lora_params": lora_params,
+        "chat_id": chat_id,
     }, None
 
 
@@ -274,7 +279,13 @@ def handler(job):
     if error_message:
         return {"error": error_message}
 
+    try:
+        check_kafka_creds()
+    except ValueError as e:
+        return {"error": str(e)}
+
     # Extract validated data
+    chat_id = validated_data["chat_id"]
     workflow = validated_data["workflow"]
     prompt: str = validated_data["lora_params"]["prompt"]
     images_s3_paths: str | None = validated_data.get("images_s3_paths")
@@ -335,10 +346,23 @@ def handler(job):
             return {"error": f"Error waiting for image generation: {str(e)}", "refresh_worker": True}
 
         # Get the generated image and return it as URL in an AWS bucket or as base64
-        images_result = process_output_images(upload_path=upload_path)
+        process_output_images(upload_path=upload_path)
 
-        result = {**images_result, "refresh_worker": REFRESH_WORKER}
+        with kafka_manager() as (kafka_producer, topic_name):
+            push_inference_completed_msg(
+                chat_id=chat_id,
+                job_id=job["id"],
+                upload_path=upload_path,
+                kafka_producer=kafka_producer,
+                topic_name=topic_name,
+            )
 
+        result = {
+            "chat_id": chat_id,
+            "rp_job_id": job["id"],
+            "upload_path": upload_path,
+            "refresh_worker": REFRESH_WORKER,
+        }
         return result
 
 
