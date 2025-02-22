@@ -6,22 +6,19 @@ import json
 from kafka import KafkaProducer
 
 
-def check_kafka_creds():
-    fqdn = os.getenv("KAFKA_FQDN")
-    user = os.getenv("KAFKA_USER")
-    password = os.getenv("KAFKA_PASSWORD")
-    kafka_topic_name = os.getenv("KAFKA_TOPIC_NAME")
+def check_and_get_kafka_creds() -> tuple[str, str, str, str]:
+    fqdn = os.getenv("VIBEAI_KAFKA_FQDN")
+    user = os.getenv("VIBEAI_KAFKA_USER")
+    password = os.getenv("VIBEAI_KAFKA_PASSWORD")
+    kafka_topic_name = os.getenv("VIBEAI_KAFKA_TOPIC_NAME")
     if not all((fqdn, user, password, kafka_topic_name)):
         raise ValueError("Not all kafka credentials specified.")
+    return fqdn, user, password, kafka_topic_name
 
 
 @contextmanager
 def kafka_manager() -> Generator[tuple[KafkaProducer, str], any, any]:
-    check_kafka_creds()
-    fqdn = os.getenv("KAFKA_FQDN")
-    user = os.getenv("KAFKA_USER")
-    password = os.getenv("KAFKA_PASSWORD")
-    kafka_topic_name = os.getenv("KAFKA_TOPIC_NAME")
+    fqdn, user, password, kafka_topic_name = check_and_get_kafka_creds()
     producer = KafkaProducer(
         bootstrap_servers=f"{fqdn}:9091",
         security_protocol="SASL_SSL",

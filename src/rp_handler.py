@@ -10,7 +10,7 @@ from io import BytesIO
 
 from constants import INPUT_IMGS_DIR, COMFY_OUTPUT_PATH, LOCAL_LORA_PATH, LORA_NAME, UNET_NAME
 from helper_functions import prepare_input_images_contextmanager, image_to_base64, temp_folder
-from kafka_producer_manager import check_kafka_creds, kafka_manager, push_inference_completed_msg
+from kafka_producer_manager import check_and_get_kafka_creds, kafka_manager, push_inference_completed_msg
 from s3_manager import S3Manager
 
 # Time to wait between API check attempts in milliseconds
@@ -280,7 +280,7 @@ def handler(job):
         return {"error": error_message}
 
     try:
-        check_kafka_creds()
+        check_and_get_kafka_creds()
     except ValueError as e:
         return {"error": str(e)}
 
