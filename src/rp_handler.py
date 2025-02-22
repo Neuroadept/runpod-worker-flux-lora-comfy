@@ -8,8 +8,8 @@ import requests
 import base64
 from io import BytesIO
 
-from constants import INPUT_IMGS_DIR, COMFY_OUTPUT_PATH, LOCAL_LORA_PATH, LORA_NAME, UNET_NAME
-from helper_functions import prepare_input_images_contextmanager, image_to_base64, temp_folder
+from constants import INPUT_IMGS_DIR, COMFY_OUTPUT_PATH, LOCAL_LORA_PATH
+from helper_functions import prepare_input_images_contextmanager, image_to_base64, temp_folder, temp_images
 from kafka_producer_manager import check_and_get_kafka_creds, kafka_manager, push_inference_completed_msg
 from s3_manager import S3Manager
 
@@ -317,7 +317,7 @@ def handler(job):
             return upload_result
 
     # Queue the workflow
-    with temp_folder(LOCAL_LORA_PATH.parent), temp_folder(COMFY_OUTPUT_PATH):
+    with temp_folder(LOCAL_LORA_PATH.parent), temp_images(COMFY_OUTPUT_PATH):
         try:
             s3_manager.download_file(s3_key=lora_download_path, local_path=LOCAL_LORA_PATH)
             queued_workflow = queue_workflow(workflow)
@@ -346,7 +346,9 @@ def handler(job):
             return {"error": f"Error waiting for image generation: {str(e)}", "refresh_worker": True}
 
         # Get the generated image and return it as URL in an AWS bucket or as base64
-        process_output_images(upload_path=upload_path)
+        img_upload_status = process_output_images(upload_path=upload_path)
+        if img_upload_status["status"] == "error":
+            return {"error": img_upload_status["message"]}
 
         with kafka_manager() as (kafka_producer, topic_name):
             push_inference_completed_msg(

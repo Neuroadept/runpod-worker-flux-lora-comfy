@@ -35,6 +35,15 @@ def temp_folder(folder_path: Path) -> None:
         shutil.rmtree(folder_path, ignore_errors=True)
 
 
+@contextmanager
+def temp_images(folder_path: Path):
+    try:
+        yield
+    finally:
+        for file_path in folder_path.iterdir():
+            file_path.unlink(missing_ok=True)
+
+
 def image_to_base64(image_path: Path) -> str:
     """
     Reads an image file and converts it to a base64 encoded string.
