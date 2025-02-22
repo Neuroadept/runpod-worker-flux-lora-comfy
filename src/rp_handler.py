@@ -83,7 +83,7 @@ def validate_input(job_input):
         return None, "Prompt is not provided"
 
     chat_id = job_input.get("chat_id")
-    if not isinstance(upload_path, int):
+    if not isinstance(chat_id, int):
         return None, "chat_id is not provided or not int"
 
     # Return validated data and no error
