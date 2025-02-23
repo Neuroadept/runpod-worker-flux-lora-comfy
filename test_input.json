@@ -1,8 +1,8 @@
 {
   "input": {
     "chat_id": 1122,
-    "upload_path": "inference_images/emma_table",
-    "lora_download_path": "trained_loras/emma_watson/Emma_Watson-000052.safetensors",
+    "upload_path": "inference_images/buzova_mountain",
+    "lora_download_path": "trained_loras/buzova_real2",
     "lora_params": {
       "prompt": "A young woman standing in the mountains, wearing a bright jacket with cute cartoon chicks printed on it. The scene is set during golden hour, with warm sunlight casting soft shadows across the rugged mountain landscape. She has a friendly, cheerful expression as she looks out at the breathtaking view. Her jacket features playful yellow chicks with little wings and big round eyes scattered all over it, adding a whimsical touch to the outdoor setting. The background showcases majestic snow-capped peaks, lush pine trees, and a clear blue sky with fluffy white clouds."
     },
@@ -149,7 +149,7 @@
       },
       "25": {
         "inputs": {
-          "noise_seed": 650334514838586
+          "noise_seed": 650334514838587
         },
         "class_type": "RandomNoise",
         "_meta": {

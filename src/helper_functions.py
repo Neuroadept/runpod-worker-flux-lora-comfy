@@ -37,6 +37,8 @@ def temp_folder(folder_path: Path) -> None:
 
 @contextmanager
 def temp_images(folder_path: Path):
+    for file_path in folder_path.iterdir():
+        file_path.unlink(missing_ok=True)
     try:
         yield
     finally:
