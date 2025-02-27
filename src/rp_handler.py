@@ -6,10 +6,9 @@ import time
 import os
 import requests
 import base64
-from io import BytesIO
 
-from constants import INPUT_IMGS_DIR, COMFY_OUTPUT_PATH, LOCAL_LORA_PATH
-from helper_functions import prepare_input_images_contextmanager, image_to_base64, temp_folder, temp_images
+from constants import COMFY_OUTPUT_PATH, INPUT_IMG_PATH, LOCAL_LORA_PATH
+from helper_functions import prepare_input_image_contextmanager, temp_folder, temp_images
 from kafka_producer_manager import check_and_get_kafka_creds, kafka_manager, push_inference_completed_msg
 from s3_manager import S3Manager
 
@@ -56,15 +55,9 @@ def validate_input(job_input):
         return None, "Missing 'workflow' parameter"
 
     # Validate 'images' in input, if provided
-    images_s3_paths = job_input.get("images_s3_path")
-    if (
-            images_s3_paths is not None and
-            (not isinstance(images_s3_paths, list) or any(not isinstance(image, str) for image in images_s3_paths))
-    ):
-        return (
-            None,
-            "'images' must be a list of objects with 'name' and 'image' keys",
-        )
+    image_s3_path = job_input.get("image_s3_path")
+    if image_s3_path is not None and not isinstance(image_s3_path, str):
+        return None, "image_s3_path must be str if provided"
 
     upload_path = job_input.get("upload_path")
     if not isinstance(upload_path, str):
@@ -90,7 +83,7 @@ def validate_input(job_input):
     return {
         "workflow": workflow,
         "lora_download_path": lora_download_path,
-        "images_s3_paths": images_s3_paths,
+        "image_s3_path": image_s3_path,
         "upload_path": upload_path,
         "lora_params": lora_params,
         "chat_id": chat_id,
@@ -129,59 +122,6 @@ def check_server(url, retries=500, delay=50):
         f"runpod-worker-comfy - Failed to connect to server at {url} after {retries} attempts."
     )
     return False
-
-
-def upload_images(images):
-    """
-    Upload a list of base64 encoded images to the ComfyUI server using the /upload/image endpoint.
-
-    Args:
-        images (list): A list of dictionaries, each containing the 'name' of the image and the 'image' as a base64 encoded string.
-        server_address (str): The address of the ComfyUI server.
-
-    Returns:
-        dict: A list of responses from the server for each image upload.
-    """
-    if not images:
-        return {"status": "success", "message": "No images to upload", "details": []}
-
-    responses = []
-    upload_errors = []
-
-    print(f"runpod-worker-comfy - image(s) upload")
-
-    for image in images:
-        name = image["name"]
-        image_data = image["image"]
-        blob = base64.b64decode(image_data)
-
-        # Prepare the form data
-        files = {
-            "image": (name, BytesIO(blob), "image/png"),
-            "overwrite": (None, "true"),
-        }
-
-        # POST request to upload the image
-        response = requests.post(f"http://{COMFY_HOST}/upload/image", files=files)
-        if response.status_code != 200:
-            upload_errors.append(f"Error uploading {name}: {response.text}")
-        else:
-            responses.append(f"Successfully uploaded {name}")
-
-    if upload_errors:
-        print(f"runpod-worker-comfy - image(s) upload with errors")
-        return {
-            "status": "error",
-            "message": "Some images failed to upload",
-            "details": upload_errors,
-        }
-
-    print(f"runpod-worker-comfy - image(s) upload complete")
-    return {
-        "status": "success",
-        "message": "All images uploaded successfully",
-        "details": responses,
-    }
 
 
 def queue_workflow(workflow):
@@ -253,9 +193,11 @@ def process_output_images(upload_path: str):
         }
 
 
-def modify_workflow(wf: dict, prompt: str | None):
+def modify_workflow(wf: dict, prompt: str | None, is_img2img: bool):
     if prompt is not None:
         wf["6"]["inputs"]["text"] = prompt
+    if is_img2img:
+        wf["41"]["inputs"]["image"] = INPUT_IMG_PATH.name
     return wf
 
 
@@ -288,11 +230,11 @@ def handler(job):
     chat_id = validated_data["chat_id"]
     workflow = validated_data["workflow"]
     prompt: str = validated_data["lora_params"]["prompt"]
-    images_s3_paths: str | None = validated_data.get("images_s3_paths")
+    image_s3_path: str | None = validated_data.get("image_s3_path")
     upload_path = validated_data["upload_path"]
     lora_download_path = validated_data["lora_download_path"]
 
-    workflow = modify_workflow(workflow, prompt)
+    workflow = modify_workflow(workflow, prompt, image_s3_path is not None)
 
     # Make sure that the ComfyUI API is available
     check_server(
@@ -304,20 +246,12 @@ def handler(job):
     # Upload images if they exist
     s3_manager = S3Manager()
 
-    if images_s3_paths is not None:
-        images = []
-        with prepare_input_images_contextmanager(imgs_path=images_s3_paths, imgs_in_s3=True, s3_manager=s3_manager):
-            for file_path in INPUT_IMGS_DIR.iterdir():
-                images.append(image_to_base64(file_path))
-
-        upload_result = upload_images(images)
-
-        if upload_result["status"] == "error":
-            upload_result["refresh_worker"] = REFRESH_WORKER
-            return upload_result
-
     # Queue the workflow
-    with temp_folder(LOCAL_LORA_PATH.parent), temp_images(COMFY_OUTPUT_PATH):
+    with (
+        prepare_input_image_contextmanager(img_key=image_s3_path, img_in_s3=True, s3_manager=s3_manager),
+        temp_folder(LOCAL_LORA_PATH.parent),
+        temp_images(COMFY_OUTPUT_PATH)
+    ):
         try:
             s3_manager.download_file(s3_key=lora_download_path, local_path=LOCAL_LORA_PATH)
             queued_workflow = queue_workflow(workflow)

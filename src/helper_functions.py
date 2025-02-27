@@ -3,26 +3,29 @@ import shutil
 from contextlib import contextmanager
 from pathlib import Path
 
-from constants import INPUT_IMGS_DIR, MOUNTED_STORAGE
+from constants import INPUT_IMG_DIR, INPUT_IMG_PATH, MOUNTED_STORAGE
 from s3_manager import S3Manager
 
 
-def prepare_input_images(imgs_path: str | None, imgs_in_s3: bool, s3_manager: S3Manager) -> None:
-    if imgs_path is None:
+def prepare_input_image(img_key: str | None, imgs_in_s3: bool, s3_manager: S3Manager) -> None:
+    if img_key is None:
         return
     if imgs_in_s3:
-        s3_manager.download_directory(s3_prefix=imgs_path, local_directory=INPUT_IMGS_DIR)
+        s3_manager.download_file(s3_key=img_key, local_path=INPUT_IMG_PATH)
     else:
-        shutil.copytree(MOUNTED_STORAGE / imgs_path, INPUT_IMGS_DIR)
+        shutil.copy(MOUNTED_STORAGE / img_key, INPUT_IMG_PATH)
 
 
 @contextmanager
-def prepare_input_images_contextmanager(imgs_path: str | None, imgs_in_s3: bool, s3_manager: S3Manager) -> None:
+def prepare_input_image_contextmanager(img_key: str | None, img_in_s3: bool, s3_manager: S3Manager) -> None:
+    for file_path in INPUT_IMG_DIR.iterdir():
+        file_path.unlink(missing_ok=True)
     try:
-        prepare_input_images(imgs_path=imgs_path, imgs_in_s3=imgs_in_s3, s3_manager=s3_manager)
+        prepare_input_image(img_key=img_key, imgs_in_s3=img_in_s3, s3_manager=s3_manager)
         yield
     finally:
-        shutil.rmtree(INPUT_IMGS_DIR, ignore_errors=True)
+        for file_path in INPUT_IMG_DIR.iterdir():
+            file_path.unlink(missing_ok=True)
 
 
 @contextmanager
