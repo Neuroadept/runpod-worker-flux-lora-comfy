@@ -1,7 +1,7 @@
 {
   "input": {
     "chat_id": 221916486,
-    "image_s3_path": "reference_images",
+    "image_s3_path": "reference_images/sky.jpeg",
     "upload_path": "inference_images/test",
     "lora_download_path": "trained_loras/56",
     "lora_params": {
@@ -10,9 +10,9 @@
     "workflow": {
       "6": {
         "inputs": {
-          "text": "photo of crab nebula",
+          "text": "",
           "clip": [
-            "38",
+            "45",
             1
           ]
         },
@@ -25,7 +25,7 @@
         "inputs": {
           "samples": [
             "13",
-            0
+            1
           ],
           "vae": [
             "10",
@@ -63,7 +63,8 @@
         "inputs": {
           "clip_name1": "t5xxl_fp16.safetensors",
           "clip_name2": "clip_l.safetensors",
-          "type": "flux"
+          "type": "flux",
+          "device": "default"
         },
         "class_type": "DualCLIPLoader",
         "_meta": {
@@ -99,7 +100,7 @@
             0
           ],
           "latent_image": [
-            "27",
+            "43",
             0
           ]
         },
@@ -110,7 +111,7 @@
       },
       "16": {
         "inputs": {
-          "sampler_name": "euler"
+          "sampler_name": "ddim"
         },
         "class_type": "KSamplerSelect",
         "_meta": {
@@ -119,9 +120,9 @@
       },
       "17": {
         "inputs": {
-          "scheduler": "simple",
+          "scheduler": "normal",
           "steps": 20,
-          "denoise": 1,
+          "denoise": 0.6,
           "model": [
             "30",
             0
@@ -150,7 +151,7 @@
       },
       "25": {
         "inputs": {
-          "noise_seed": 650334514838586
+          "noise_seed": 654516668135428
         },
         "class_type": "RandomNoise",
         "_meta": {
@@ -172,9 +173,9 @@
       },
       "27": {
         "inputs": {
-          "width": 1216,
-          "height": 832,
-          "batch_size": 1
+          "width": 1024,
+          "height": 1280,
+          "batch_size": 6
         },
         "class_type": "EmptySD3LatentImage",
         "_meta": {
@@ -185,10 +186,10 @@
         "inputs": {
           "max_shift": 1.15,
           "base_shift": 0.5,
-          "width": 1216,
-          "height": 832,
+          "width": 1024,
+          "height": 1280,
           "model": [
-            "38",
+            "45",
             0
           ]
         },
@@ -197,7 +198,49 @@
           "title": "ModelSamplingFlux"
         }
       },
-      "38": {
+      "41": {
+        "inputs": {
+          "image": "",
+          "upload": "image"
+        },
+        "class_type": "LoadImage",
+        "_meta": {
+          "title": "Load Image"
+        }
+      },
+      "42": {
+        "inputs": {
+          "pixels": [
+            "41",
+            0
+          ],
+          "vae": [
+            "10",
+            0
+          ]
+        },
+        "class_type": "VAEEncode",
+        "_meta": {
+          "title": "VAE Encode"
+        }
+      },
+      "43": {
+        "inputs": {
+          "samples1": [
+            "27",
+            0
+          ],
+          "samples2": [
+            "42",
+            0
+          ]
+        },
+        "class_type": "LatentBatch",
+        "_meta": {
+          "title": "LatentBatch"
+        }
+      },
+      "45": {
         "inputs": {
           "lora_name": "lora.safetensors",
           "strength_model": 1,

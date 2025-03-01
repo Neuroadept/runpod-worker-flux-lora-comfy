@@ -2,7 +2,7 @@
 IMAGE_NAME := runpod-worker-flux-lora-comfy
 REGISTRY := gfx73/ # Optional, set if pushing to a registry
 ENV_FILE := $(shell pwd)/.env # Absolute path to the .env file
-TEST_INPUT_FILE := $(strip $(shell pwd))/src/test_input.json # Absolute path to the test input file
+TEST_INPUT_FILE := $(strip $(shell pwd))/test_input.json # Absolute path to the test input file
 GET_TAG := $(shell git rev-parse --short HEAD)
 FULL_IMAGE_NAME := $(strip $(REGISTRY))$(IMAGE_NAME)
 
@@ -23,7 +23,7 @@ build-release:
 # Run the commit-based image
 run-commit:
 	docker run --env-file $(ENV_FILE) \
-		-v $(strip $(TEST_INPUT_FILE)):/src/test_input.json:ro \
+		-v $(strip $(TEST_INPUT_FILE)):/test_input.json:ro \
 		--gpus all \
 		$(FULL_IMAGE_NAME):$(GET_TAG)
 

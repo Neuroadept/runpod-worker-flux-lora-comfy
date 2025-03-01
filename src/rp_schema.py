@@ -5,7 +5,8 @@ INPUT_SCHEMA = {
     },
     "image_s3_path": {
         "type": str,
-        "required": True,
+        "required": False,
+        "default": "",
     },
     "upload_path": {
         "type": str,

@@ -1,4 +1,5 @@
 import time
+import traceback
 from functools import wraps
 
 import runpod
@@ -24,6 +25,7 @@ def fail_on_exception(func):
             logger = runpod.RunPodLogger()
             logger.error(f"Exception type: {type(e)}")
             logger.error(f"An error occurred: {str(e)}")
+            logger.info(f"Trace: {traceback.format_exc()}")
             return {"error": "error" + str(e), "refresh_worker": True}
 
     return fail_on_exception_wrapper
@@ -53,7 +55,7 @@ def handler(job):
     with KafkaManager.get_and_close() as kafka_manager:
         return send_to_kafka_on_exception(kafka_manager=kafka_manager, job=job)(handler_main)(
             job=job,
-            kafka_manager=KafkaManager,
+            kafka_manager=kafka_manager,
         )
 
 
@@ -79,7 +81,7 @@ def handler_main(job, kafka_manager: KafkaManager):
     chat_id = job_input["chat_id"]
     workflow = job_input["workflow"]
     prompt: str = job_input["lora_params"]["prompt"]
-    image_s3_path: str | None = job_input.get("image_s3_path")
+    image_s3_path: str | None = job_input["image_s3_path"] or None
     upload_path = job_input["upload_path"]
     lora_download_path = job_input["lora_download_path"]
 
