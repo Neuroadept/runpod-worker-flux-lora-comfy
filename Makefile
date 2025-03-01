@@ -31,21 +31,21 @@ run-commit:
 # Run the release image
 run-release:
 	docker run --env-file $(ENV_FILE) \
-		-v $(strip $(TEST_INPUT_FILE)):/src/test_input.json:ro \
+		-v $(strip $(TEST_INPUT_FILE)):/test_input.json:ro \
 		--gpus all \
 		$(FULL_IMAGE_NAME):$(RELEASE_VERSION)
 
 # Run the commit-based image interactively
 run-commit-interactive:
 	docker run --env-file $(ENV_FILE) \
-		-v $(strip $(TEST_INPUT_FILE)):/src/test_input.json:ro \
+		-v $(strip $(TEST_INPUT_FILE)):/test_input.json:ro \
 		--gpus all \
 		-it $(FULL_IMAGE_NAME):$(GET_TAG) bash
 
 # Run the release image interactively
 run-release-interactive:
 	docker run --env-file $(ENV_FILE) \
-		-v $(strip $(TEST_INPUT_FILE)):/src/test_input.json:ro \
+		-v $(strip $(TEST_INPUT_FILE)):/test_input.json:ro \
 		--gpus all \
 		-it $(FULL_IMAGE_NAME):$(RELEASE_VERSION) bash
 
