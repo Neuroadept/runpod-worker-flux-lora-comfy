@@ -1,16 +1,16 @@
 {
   "input": {
     "chat_id": 221916486,
-    "image_s3_path": "reference_images/sky.jpeg",
+    "image_s3_path": "img2img/58/1740864910744/1740864910744.png",
     "upload_path": "inference_images/test",
-    "lora_download_path": "trained_loras/56",
+    "lora_download_path": "trained_loras/58",
     "lora_params": {
       "prompt": ""
     },
     "workflow": {
       "6": {
         "inputs": {
-          "text": "",
+          "text": "Men with a red sword",
           "clip": [
             "45",
             1
@@ -200,7 +200,7 @@
       },
       "41": {
         "inputs": {
-          "image": "",
+          "image": "example.png",
           "upload": "image"
         },
         "class_type": "LoadImage",
