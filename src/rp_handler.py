@@ -1,238 +1,87 @@
-import runpod
-import json
-import urllib.request
-import urllib.parse
 import time
-import os
-import requests
-import base64
+from functools import wraps
 
-from constants import COMFY_OUTPUT_PATH, INPUT_IMG_PATH, LOCAL_LORA_PATH
-from helper_functions import prepare_input_image_contextmanager, temp_folder, temp_images
-from kafka_producer_manager import check_and_get_kafka_creds, kafka_manager, push_inference_completed_msg
+import runpod
+from runpod.serverless.utils.rp_validator import validate
+
+from constants import COMFY_OUTPUT_PATH, LOCAL_LORA_PATH
+from helper_functions import get_dependencies, prepare_input_image_contextmanager, temp_folder, temp_images
+from kafka_producer_manager import KafkaManager
+from rp_schema import INPUT_SCHEMA
 from s3_manager import S3Manager
-
-# Time to wait between API check attempts in milliseconds
-COMFY_API_AVAILABLE_INTERVAL_MS = 50
-# Maximum number of API check attempts
-COMFY_API_AVAILABLE_MAX_RETRIES = 500
-# Time to wait between poll attempts in milliseconds
-COMFY_POLLING_INTERVAL_MS = int(os.environ.get("COMFY_POLLING_INTERVAL_MS", 250))
-# Maximum number of poll attempts
-COMFY_POLLING_MAX_RETRIES = int(os.environ.get("COMFY_POLLING_MAX_RETRIES", 5000))
-# Host where ComfyUI is running
-COMFY_HOST = "127.0.0.1:8188"
-# Enforce a clean state after each job is done
-# see https://docs.runpod.io/docs/handler-additional-controls#refresh-worker
-REFRESH_WORKER = os.environ.get("REFRESH_WORKER", "false").lower() == "true"
+from comfy_api import check_server, queue_workflow, get_history
+from constants import COMFY_API_AVAILABLE_INTERVAL_MS, COMFY_API_AVAILABLE_MAX_RETRIES, COMFY_POLLING_INTERVAL_MS, \
+    COMFY_POLLING_MAX_RETRIES, COMFY_HOST, REFRESH_WORKER
+from helper_functions import process_output_images, modify_workflow
 
 
-def validate_input(job_input):
-    """
-    Validates the input for the handler function.
-
-    Args:
-        job_input (dict): The input data to validate.
-
-    Returns:
-        tuple: A tuple containing the validated data and an error message, if any.
-               The structure is (validated_data, error_message).
-    """
-    # Validate if job_input is provided
-    if job_input is None:
-        return None, "Please provide input"
-
-    # Check if input is a string and try to parse it as JSON
-    if isinstance(job_input, str):
+def fail_on_exception(func):
+    @wraps(func)
+    def fail_on_exception_wrapper(*args, **kwargs):
         try:
-            job_input = json.loads(job_input)
-        except json.JSONDecodeError:
-            return None, "Invalid JSON format in input"
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger = runpod.RunPodLogger()
+            logger.error(f"Exception type: {type(e)}")
+            logger.error(f"An error occurred: {str(e)}")
+            return {"error": "error" + str(e), "refresh_worker": True}
 
-    # Validate 'workflow' in input
-    workflow = job_input.get("workflow")
-    if workflow is None:
-        return None, "Missing 'workflow' parameter"
-
-    # Validate 'images' in input, if provided
-    image_s3_path = job_input.get("image_s3_path")
-    if image_s3_path is not None and not isinstance(image_s3_path, str):
-        return None, "image_s3_path must be str if provided"
-
-    upload_path = job_input.get("upload_path")
-    if not isinstance(upload_path, str):
-        return None, "Upload s3 path is not provided"
-
-    lora_download_path = job_input.get("lora_download_path")
-    if not isinstance(lora_download_path, str):
-        return None, "Lora download path is not provided"
-
-    lora_params = job_input.get("lora_params")
-    if not isinstance(lora_params, dict):
-        return None, "Lora params is not provided"
-
-    prompt = lora_params.get("prompt")
-    if not isinstance(prompt, str):
-        return None, "Prompt is not provided"
-
-    chat_id = job_input.get("chat_id")
-    if not isinstance(chat_id, int):
-        return None, "chat_id is not provided or not int"
-
-    # Return validated data and no error
-    return {
-        "workflow": workflow,
-        "lora_download_path": lora_download_path,
-        "image_s3_path": image_s3_path,
-        "upload_path": upload_path,
-        "lora_params": lora_params,
-        "chat_id": chat_id,
-    }, None
+    return fail_on_exception_wrapper
 
 
-def check_server(url, retries=500, delay=50):
-    """
-    Check if a server is reachable via HTTP GET request
+def send_to_kafka_on_exception(kafka_manager: KafkaManager, job: dict):
+    def send_to_kafka_on_exception_decorator(func):
+        @wraps(func)
+        def send_to_kafka_on_exception_wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                kafka_manager.push_error_msg(
+                    job_id=job["id"],
+                    error_type=str(type(e)),
+                    error_msg=str(e),
+                    job_input=job,
+                )
+                raise e
 
-    Args:
-    - url (str): The URL to check
-    - retries (int, optional): The number of times to attempt connecting to the server. Default is 50
-    - delay (int, optional): The time in milliseconds to wait between retries. Default is 500
+        return send_to_kafka_on_exception_wrapper
 
-    Returns:
-    bool: True if the server is reachable within the given number of retries, otherwise False
-    """
+    return send_to_kafka_on_exception_decorator
 
-    for i in range(retries):
-        try:
-            response = requests.get(url)
-
-            # If the response status code is 200, the server is up and running
-            if response.status_code == 200:
-                print(f"runpod-worker-comfy - API is reachable")
-                return True
-        except requests.RequestException as e:
-            # If an exception occurs, the server may not be ready
-            pass
-
-        # Wait for the specified delay before retrying
-        time.sleep(delay / 1000)
-
-    print(
-        f"runpod-worker-comfy - Failed to connect to server at {url} after {retries} attempts."
-    )
-    return False
-
-
-def queue_workflow(workflow):
-    """
-    Queue a workflow to be processed by ComfyUI
-
-    Args:
-        workflow (dict): A dictionary containing the workflow to be processed
-
-    Returns:
-        dict: The JSON response from ComfyUI after processing the workflow
-    """
-
-    # The top level element "prompt" is required by ComfyUI
-    data = json.dumps({"prompt": workflow}).encode("utf-8")
-
-    req = urllib.request.Request(f"http://{COMFY_HOST}/prompt", data=data)
-    return json.loads(urllib.request.urlopen(req).read())
-
-
-def get_history(prompt_id):
-    """
-    Retrieve the history of a given prompt using its ID
-
-    Args:
-        prompt_id (str): The ID of the prompt whose history is to be retrieved
-
-    Returns:
-        dict: The history of the prompt, containing all the processing steps and results
-    """
-    with urllib.request.urlopen(f"http://{COMFY_HOST}/history/{prompt_id}") as response:
-        return json.loads(response.read())
-
-
-def base64_encode(img_path):
-    """
-    Returns base64 encoded image.
-
-    Args:
-        img_path (str): The path to the image
-
-    Returns:
-        str: The base64 encoded image
-    """
-    with open(img_path, "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
-        return f"{encoded_string}"
-
-
-def process_output_images(upload_path: str):
-    # The path where ComfyUI stores the generated images
-    image_paths = list(COMFY_OUTPUT_PATH.iterdir())
-
-    print(f"uploading - {image_paths}")
-
-    # The image is in the output folder
-    if image_paths:
-        s3_manager = S3Manager()
-        s3_manager.upload_directory(COMFY_OUTPUT_PATH, upload_path)
-        return {
-            "status": "success",
-            "message": {"upload_path": upload_path},
-        }
-    else:
-        print("runpod-worker-comfy - the image does not exist in the output folder")
-        return {
-            "status": "error",
-            "message": f"the image does not exist in the specified output folder: {COMFY_OUTPUT_PATH}",
-        }
-
-
-def modify_workflow(wf: dict, prompt: str | None, is_img2img: bool):
-    if prompt is not None:
-        wf["6"]["inputs"]["text"] = prompt
-    if is_img2img:
-        wf["41"]["inputs"]["image"] = INPUT_IMG_PATH.name
-    return wf
-
-
+@fail_on_exception
 def handler(job):
-    """
-    The main function that handles a job of generating an image.
+    with KafkaManager.get_and_close() as kafka_manager:
+        return send_to_kafka_on_exception(kafka_manager=kafka_manager, job=job)(handler_main)(
+            job=job,
+            kafka_manager=KafkaManager,
+        )
 
-    This function validates the input, sends a prompt to ComfyUI for processing,
-    polls ComfyUI for result, and retrieves generated images.
 
-    Args:
-        job (dict): A dictionary containing job details and input parameters.
+def handler_main(job, kafka_manager: KafkaManager):
+    logger = runpod.RunPodLogger()
+    deps = ", ".join([f"{dep['path']}=={dep['version']}" for dep in get_dependencies()])
+    logger.info(f"Currently using dependencies: {deps}")
 
-    Returns:
-        dict: A dictionary containing either an error message or a success status with generated images.
-    """
     job_input = job["input"]
-
-    # Make sure that the input is valid
-    validated_data, error_message = validate_input(job_input)
-    if error_message:
-        return {"error": error_message}
-
-    try:
-        check_and_get_kafka_creds()
-    except ValueError as e:
-        return {"error": str(e)}
+    if "errors" in (job_input := validate(job_input, INPUT_SCHEMA)):
+        logger.error(str(job_input["errors"]))
+        kafka_manager.push_error_msg(
+            job_id=job["id"],
+            error_type="InputValidationError",
+            error_msg=str(job_input["errors"]),
+            job_input=job_input,
+        )
+        return {"error": str(job_input["errors"])}
+    job_input = job_input["validated_input"]
+    logger.info(job_input)
 
     # Extract validated data
-    chat_id = validated_data["chat_id"]
-    workflow = validated_data["workflow"]
-    prompt: str = validated_data["lora_params"]["prompt"]
-    image_s3_path: str | None = validated_data.get("image_s3_path")
-    upload_path = validated_data["upload_path"]
-    lora_download_path = validated_data["lora_download_path"]
+    chat_id = job_input["chat_id"]
+    workflow = job_input["workflow"]
+    prompt: str = job_input["lora_params"]["prompt"]
+    image_s3_path: str | None = job_input.get("image_s3_path")
+    upload_path = job_input["upload_path"]
+    lora_download_path = job_input["lora_download_path"]
 
     workflow = modify_workflow(workflow, prompt, image_s3_path is not None)
 
@@ -284,14 +133,12 @@ def handler(job):
         if img_upload_status["status"] == "error":
             return {"error": img_upload_status["message"]}
 
-        with kafka_manager() as (kafka_producer, topic_name):
-            push_inference_completed_msg(
-                chat_id=chat_id,
-                job_id=job["id"],
-                upload_path=upload_path,
-                kafka_producer=kafka_producer,
-                topic_name=topic_name,
-            )
+
+        kafka_manager.push_inference_completed_msg(
+            chat_id=chat_id,
+            job_id=job["id"],
+            upload_path=upload_path,
+        )
 
         result = {
             "chat_id": chat_id,

@@ -13,3 +13,17 @@ MODELS_DIR = Path("/comfyui/models")
 LORA_NAME: str = "lora.safetensors"
 UNET_NAME: str = "flux1-dev.safetensors"
 LOCAL_LORA_PATH = MODELS_DIR / "loras" / LORA_NAME
+
+
+# Time to wait between API check attempts in milliseconds
+COMFY_API_AVAILABLE_INTERVAL_MS = 50
+# Maximum number of API check attempts
+COMFY_API_AVAILABLE_MAX_RETRIES = 500
+# Time to wait between poll attempts in milliseconds
+COMFY_POLLING_INTERVAL_MS = int(os.environ.get("COMFY_POLLING_INTERVAL_MS", 250))
+# Maximum number of poll attempts
+COMFY_POLLING_MAX_RETRIES = int(os.environ.get("COMFY_POLLING_MAX_RETRIES", 5000))
+# Host where ComfyUI is running
+COMFY_HOST = "127.0.0.1:8188"
+# Enforce a clean state after each job is done
+REFRESH_WORKER = os.environ.get("REFRESH_WORKER", "false").lower() == "true"
