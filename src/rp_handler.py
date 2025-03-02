@@ -16,6 +16,16 @@ from constants import COMFY_API_AVAILABLE_INTERVAL_MS, COMFY_API_AVAILABLE_MAX_R
 from helper_functions import process_output_images, modify_workflow
 
 
+def refresh_always(func):
+    @wraps(func)
+    def refresh_always_wrapper(*args, **kwargs):
+        return_data = func(*args, **kwargs)
+        return_data["refresh_worker"] = True
+        return return_data
+
+    return  refresh_always_wrapper
+
+
 def fail_on_exception(func):
     @wraps(func)
     def fail_on_exception_wrapper(*args, **kwargs):
@@ -50,6 +60,8 @@ def send_to_kafka_on_exception(kafka_manager: KafkaManager, job: dict):
 
     return send_to_kafka_on_exception_decorator
 
+
+@refresh_always
 @fail_on_exception
 def handler(job):
     with KafkaManager.get_and_close() as kafka_manager:
@@ -109,6 +121,9 @@ def handler_main(job, kafka_manager: KafkaManager):
             prompt_id = queued_workflow["prompt_id"]
             print(f"runpod-worker-comfy - queued workflow with ID {prompt_id}")
         except Exception as e:
+            logger.error(f"Exception type: {type(e)}")
+            logger.error(f"An error occurred: {str(e)}")
+            logger.info(f"Trace: {traceback.format_exc()}")
             return {"error": f"Error queuing workflow: {str(e)}", "refresh_worker": True}
 
         # Poll for completion
