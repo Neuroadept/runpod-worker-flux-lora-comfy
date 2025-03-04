@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List, Optional, Tuple
 import boto3
+from botocore.config import Config
 from runpod import RunPodLogger
 
 class S3Manager:
@@ -20,12 +21,19 @@ class S3Manager:
         self.region = os.getenv("AWS_REGION")
         if not self.bucket_name or not self.access_key or not self.secret_key or not self.region:
             raise ValueError("Not all S3 environment variables are set.")
+        config = Config(
+            retries={
+                'max_attempts': 3,
+                'mode': 'standard'
+            }
+        )
         self.s3_client = boto3.client(
             's3',
             aws_access_key_id=self.access_key,
             aws_secret_access_key=self.secret_key,
             endpoint_url=self.endpoint_url,
-            region_name=self.region
+            region_name=self.region,
+            config=config,
         )
 
     def download_file(self, s3_key: str, local_path: Path) -> None:
