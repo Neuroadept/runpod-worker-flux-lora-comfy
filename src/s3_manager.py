@@ -41,6 +41,7 @@ class S3Manager:
             self.logger.info(f"Downloaded {s3_key} to {local_path}")
         except Exception as e:
             self.logger.error(f"Error downloading {s3_key}: {e}")
+            raise e
 
     def download_directory(self, s3_prefix: str, local_directory: Path) -> None:
         """
@@ -76,10 +77,9 @@ class S3Manager:
                 raise FileNotFoundError(f"Local file does not exist: {local_path}")
             self.s3_client.upload_file(str(local_path), self.bucket_name, s3_key)
             self.logger.info(f"Uploaded {local_path} to {s3_key}")
-        except FileNotFoundError as fnf_error:
-            self.logger.error(fnf_error)
         except Exception as e:
             self.logger.error(f"Error uploading {local_path} to {s3_key}: {e}")
+            raise e
 
     def upload_directory(self, local_directory: Path, s3_prefix: str) -> None:
         """
