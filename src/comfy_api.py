@@ -3,6 +3,7 @@ import time
 import urllib.request
 
 import requests
+import runpod
 
 from constants import COMFY_HOST
 
@@ -19,15 +20,15 @@ def check_server(url, retries=500, delay=50):
     Returns:
     bool: True if the server is reachable within the given number of retries, otherwise False
     """
-
+    logger = runpod.RunPodLogger()
     for i in range(retries):
         try:
             response = requests.get(url)
 
             # If the response status code is 200, the server is up and running
             if response.status_code == 200:
-                print(f"runpod-worker-comfy - API is reachable")
-                return True
+                logger.info(f"runpod-worker-comfy - API is reachable")
+                return
         except requests.RequestException as e:
             # If an exception occurs, the server may not be ready
             pass
@@ -35,10 +36,10 @@ def check_server(url, retries=500, delay=50):
         # Wait for the specified delay before retrying
         time.sleep(delay / 1000)
 
-    print(
+    logger.error(
         f"runpod-worker-comfy - Failed to connect to server at {url} after {retries} attempts."
     )
-    return False
+    raise Exception("ComfyUI connection fail")
 
 
 def queue_workflow(workflow):

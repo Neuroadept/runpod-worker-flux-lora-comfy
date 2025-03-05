@@ -16,14 +16,14 @@ from constants import COMFY_API_AVAILABLE_INTERVAL_MS, COMFY_API_AVAILABLE_MAX_R
 from helper_functions import process_output_images, modify_workflow
 
 
-def refresh_always(func):
+def control_refresh(func):
     @wraps(func)
-    def refresh_always_wrapper(*args, **kwargs):
+    def control_refresh_wrapper(*args, **kwargs):
         return_data = func(*args, **kwargs)
-        return_data["refresh_worker"] = True
+        return_data["refresh_worker"] = "error" in return_data or REFRESH_WORKER
         return return_data
 
-    return  refresh_always_wrapper
+    return control_refresh_wrapper
 
 
 def fail_on_exception(func):
@@ -36,7 +36,7 @@ def fail_on_exception(func):
             logger.error(f"Exception type: {type(e)}")
             logger.error(f"An error occurred: {str(e)}")
             logger.info(f"Trace: {traceback.format_exc()}")
-            return {"error": "error" + str(e), "refresh_worker": True}
+            return {"error": "error" + str(e)}
 
     return fail_on_exception_wrapper
 
@@ -61,7 +61,7 @@ def send_to_kafka_on_exception(kafka_manager: KafkaManager, job: dict):
     return send_to_kafka_on_exception_decorator
 
 
-@refresh_always
+@control_refresh
 @fail_on_exception
 def handler(job):
     with KafkaManager.get_and_close() as kafka_manager:
@@ -119,15 +119,15 @@ def handler_main(job, kafka_manager: KafkaManager):
             s3_manager.download_file(s3_key=lora_download_path, local_path=LOCAL_LORA_PATH)
             queued_workflow = queue_workflow(workflow)
             prompt_id = queued_workflow["prompt_id"]
-            print(f"runpod-worker-comfy - queued workflow with ID {prompt_id}")
+            logger.info(f"runpod-worker-comfy - queued workflow with ID {prompt_id}")
         except Exception as e:
             logger.error(f"Exception type: {type(e)}")
             logger.error(f"An error occurred: {str(e)}")
             logger.info(f"Trace: {traceback.format_exc()}")
-            return {"error": f"Error queuing workflow: {str(e)}", "refresh_worker": True}
+            return {"error": f"Error queuing workflow: {str(e)}"}
 
         # Poll for completion
-        print(f"runpod-worker-comfy - wait until image generation is complete")
+        logger.info(f"runpod-worker-comfy - wait until image generation is complete")
         retries = 0
         try:
             while retries < COMFY_POLLING_MAX_RETRIES:
@@ -141,9 +141,9 @@ def handler_main(job, kafka_manager: KafkaManager):
                     time.sleep(COMFY_POLLING_INTERVAL_MS / 1000)
                     retries += 1
             else:
-                return {"error": "Max retries reached while waiting for image generation", "refresh_worker": True}
+                return {"error": "Max retries reached while waiting for image generation"}
         except Exception as e:
-            return {"error": f"Error waiting for image generation: {str(e)}", "refresh_worker": True}
+            return {"error": f"Error waiting for image generation: {str(e)}"}
 
         # Get the generated image and return it as URL in an AWS bucket or as base64
         img_upload_status = process_output_images(upload_path=upload_path)
@@ -161,7 +161,6 @@ def handler_main(job, kafka_manager: KafkaManager):
             "chat_id": chat_id,
             "rp_job_id": job["id"],
             "upload_path": upload_path,
-            "refresh_worker": REFRESH_WORKER,
         }
         return result
 
