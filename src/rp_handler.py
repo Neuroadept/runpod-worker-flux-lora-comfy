@@ -78,14 +78,8 @@ def handler_main(job, kafka_manager: KafkaManager):
 
     job_input = job["input"]
     if "errors" in (job_input := validate(job_input, INPUT_SCHEMA)):
-        logger.error(str(job_input["errors"]))
-        kafka_manager.push_error_msg(
-            job_id=job["id"],
-            error_type="InputValidationError",
-            error_msg=str(job_input["errors"]),
-            job_input=job_input,
-        )
-        return {"error": str(job_input["errors"])}
+        raise Exception(job_input["errors"])
+
     job_input = job_input["validated_input"]
     logger.info(job_input)
 
@@ -115,16 +109,14 @@ def handler_main(job, kafka_manager: KafkaManager):
         temp_folder(LOCAL_LORA_PATH.parent),
         temp_images(COMFY_OUTPUT_PATH)
     ):
+        s3_manager.download_file(s3_key=lora_download_path, local_path=LOCAL_LORA_PATH)
         try:
-            s3_manager.download_file(s3_key=lora_download_path, local_path=LOCAL_LORA_PATH)
             queued_workflow = queue_workflow(workflow)
             prompt_id = queued_workflow["prompt_id"]
             logger.info(f"runpod-worker-comfy - queued workflow with ID {prompt_id}")
         except Exception as e:
-            logger.error(f"Exception type: {type(e)}")
-            logger.error(f"An error occurred: {str(e)}")
-            logger.info(f"Trace: {traceback.format_exc()}")
-            return {"error": f"Error queuing workflow: {str(e)}"}
+            logger.error(f"Error queueing workflow")
+            raise e
 
         # Poll for completion
         logger.info(f"runpod-worker-comfy - wait until image generation is complete")
@@ -141,15 +133,11 @@ def handler_main(job, kafka_manager: KafkaManager):
                     time.sleep(COMFY_POLLING_INTERVAL_MS / 1000)
                     retries += 1
             else:
-                return {"error": "Max retries reached while waiting for image generation"}
+                raise Exception("Max retries reached while waiting for image generation")
         except Exception as e:
-            return {"error": f"Error waiting for image generation: {str(e)}"}
+            raise Exception(f"Error waiting for image generation: {str(e)}")
 
-        # Get the generated image and return it as URL in an AWS bucket or as base64
-        img_upload_status = process_output_images(upload_path=upload_path)
-        if img_upload_status["status"] == "error":
-            return {"error": img_upload_status["message"]}
-
+        process_output_images(upload_path=upload_path)
 
         kafka_manager.push_inference_completed_msg(
             chat_id=chat_id,

@@ -4,6 +4,8 @@ import shutil
 from contextlib import contextmanager
 from pathlib import Path
 
+import runpod
+
 from constants import INPUT_IMG_DIR, MOUNTED_STORAGE
 from constants import COMFY_OUTPUT_PATH, INPUT_IMG_PATH
 from s3_manager import S3Manager
@@ -64,25 +66,18 @@ def image_to_base64(image_path: Path) -> str:
 
 
 def process_output_images(upload_path: str):
+    logger = runpod.RunPodLogger()
     # The path where ComfyUI stores the generated images
     image_paths = list(COMFY_OUTPUT_PATH.iterdir())
 
-    print(f"uploading - {image_paths}")
+    logger.info("uploading - {image_paths}")
 
     # The image is in the output folder
     if image_paths:
         s3_manager = S3Manager()
         s3_manager.upload_directory(COMFY_OUTPUT_PATH, upload_path)
-        return {
-            "status": "success",
-            "message": {"upload_path": upload_path},
-        }
     else:
-        print("runpod-worker-comfy - the image does not exist in the output folder")
-        return {
-            "status": "error",
-            "message": f"the image does not exist in the specified output folder: {COMFY_OUTPUT_PATH}",
-        }
+        raise Exception("No inference images generated")
 
 
 def modify_workflow(wf: dict, prompt: str | None, is_img2img: bool):
