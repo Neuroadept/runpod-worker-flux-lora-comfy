@@ -66,12 +66,14 @@ class KafkaManager:
             job_id: str,
             error_type: str,
             error_msg: str,
+            trace: str,
             job_input: dict,
     ) -> None:
         data = {
             "job_id": job_id,
             "error_type": error_type,
             "error_msg": error_msg,
+            "trace": trace,
             "job_input": job_input,
         }
         self._push(data)

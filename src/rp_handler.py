@@ -36,7 +36,7 @@ def fail_on_exception(func):
             logger.error(f"Exception type: {type(e)}")
             logger.error(f"An error occurred: {str(e)}")
             logger.info(f"Trace: {traceback.format_exc()}")
-            return {"error": "error" + str(e)}
+            return {"error": "error" + str(e), "trace": traceback.format_exc()}
 
     return fail_on_exception_wrapper
 
@@ -52,6 +52,7 @@ def send_to_kafka_on_exception(kafka_manager: KafkaManager, job: dict):
                     job_id=job["id"],
                     error_type=str(type(e)),
                     error_msg=str(e),
+                    trace=traceback.format_exc(),
                     job_input=job,
                 )
                 raise e
