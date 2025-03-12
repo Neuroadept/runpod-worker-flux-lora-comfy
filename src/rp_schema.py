@@ -23,5 +23,9 @@ INPUT_SCHEMA = {
     "chat_id": {
         "type": int,
         "required": True,
+    },
+    "lora_name": {
+        "type": str,
+        "required": True,
     }
 }

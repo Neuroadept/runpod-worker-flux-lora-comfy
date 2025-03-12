@@ -5,14 +5,13 @@ from functools import wraps
 import runpod
 from runpod.serverless.utils.rp_validator import validate
 
-from constants import COMFY_OUTPUT_PATH, LOCAL_LORA_PATH
 from helper_functions import get_dependencies, prepare_input_image_contextmanager, temp_folder, temp_images
 from kafka_producer_manager import KafkaManager
 from rp_schema import INPUT_SCHEMA
 from s3_manager import S3Manager
 from comfy_api import check_server, queue_workflow, get_history
 from constants import COMFY_API_AVAILABLE_INTERVAL_MS, COMFY_API_AVAILABLE_MAX_RETRIES, COMFY_POLLING_INTERVAL_MS, \
-    COMFY_POLLING_MAX_RETRIES, COMFY_HOST, REFRESH_WORKER
+    COMFY_POLLING_MAX_RETRIES, COMFY_HOST, REFRESH_WORKER, LORAS_DIR, COMFY_OUTPUT_PATH
 from helper_functions import process_output_images, modify_workflow
 
 
@@ -91,6 +90,7 @@ def handler_main(job, kafka_manager: KafkaManager):
     image_s3_path: str | None = job_input["image_s3_path"] or None
     upload_path = job_input["upload_path"]
     lora_download_path = job_input["lora_download_path"]
+    lora_name = job_input["lora_name"]
 
     workflow = modify_workflow(workflow, prompt, image_s3_path is not None)
 
@@ -107,10 +107,11 @@ def handler_main(job, kafka_manager: KafkaManager):
     # Queue the workflow
     with (
         prepare_input_image_contextmanager(img_key=image_s3_path, img_in_s3=True, s3_manager=s3_manager),
-        temp_folder(LOCAL_LORA_PATH.parent),
+        temp_folder(LORAS_DIR),
         temp_images(COMFY_OUTPUT_PATH)
     ):
-        s3_manager.download_file(s3_key=lora_download_path, local_path=LOCAL_LORA_PATH)
+        local_lora_path = LORAS_DIR / lora_name
+        s3_manager.download_file(s3_key=lora_download_path, local_path=local_lora_path)
         try:
             queued_workflow = queue_workflow(workflow)
             prompt_id = queued_workflow["prompt_id"]

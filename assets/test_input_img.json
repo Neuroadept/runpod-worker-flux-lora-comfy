@@ -4,6 +4,7 @@
     "image_s3_path": "img2img/58/1740864910744/1740864910744.png",
     "upload_path": "inference_images/test",
     "lora_download_path": "trained_loras/58",
+    "lora_name": "56.safetensors",
     "lora_params": {
       "prompt": ""
     },

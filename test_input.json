@@ -3,6 +3,7 @@
     "chat_id": 221916486,
     "upload_path": "inference_images/test",
     "lora_download_path": "trained_loras/56",
+    "lora_name": "56.safetensors",
     "lora_params": {
       "prompt": "A man doing slam dunk"
     },
@@ -198,7 +199,7 @@
       },
       "38": {
         "inputs": {
-          "lora_name": "lora.safetensors",
+          "lora_name": "56.safetensors",
           "strength_model": 1,
           "strength_clip": 1,
           "model": [
