@@ -26,6 +26,7 @@ run-commit:
 	docker run --env-file $(ENV_FILE) \
 		-v $(strip $(TEST_INPUT_FILE)):/test_input.json:ro \
 		--gpus all \
+		-e VIBEAI_NOT_ONLY_GPU \
 		$(FULL_IMAGE_NAME):$(GET_TAG)
 
 # Run the release image
@@ -33,6 +34,7 @@ run-release:
 	docker run --env-file $(ENV_FILE) \
 		-v $(strip $(TEST_INPUT_FILE)):/test_input.json:ro \
 		--gpus all \
+		-e VIBEAI_NOT_ONLY_GPU \
 		$(FULL_IMAGE_NAME):$(RELEASE_VERSION)
 
 # Run the commit-based image interactively
@@ -41,6 +43,7 @@ run-commit-interactive:
 		-v $(strip $(TEST_INPUT_FILE)):/test_input.json:ro \
 		--gpus all \
 		-p 8188:8188 \
+		-e VIBEAI_NOT_ONLY_GPU \
 		-it $(FULL_IMAGE_NAME):$(GET_TAG) bash
 
 # Run the release image interactively
@@ -49,6 +52,7 @@ run-release-interactive:
 		-v $(strip $(TEST_INPUT_FILE)):/test_input.json:ro \
 		--gpus all \
 		-p 8188:8188 \
+		-e VIBEAI_NOT_ONLY_GPU \
 		-it $(FULL_IMAGE_NAME):$(RELEASE_VERSION) bash
 
 run-dev:
@@ -56,6 +60,7 @@ run-dev:
 		-v $(strip $(SRC_DIR)):/src:ro \
 		-v $(strip $(TEST_INPUT_FILE)):/test_input.json:ro \
 		--gpus all \
+		-e VIBEAI_NOT_ONLY_GPU \
 		$(FULL_IMAGE_NAME):$(RELEASE_VERSION)
 
 run-dev-interactive:
@@ -64,4 +69,5 @@ run-dev-interactive:
 		-v $(strip $(TEST_INPUT_FILE)):/test_input.json:ro \
 		--gpus all \
 		-p 8188:8188 \
+		-e VIBEAI_NOT_ONLY_GPU \
 		-it $(FULL_IMAGE_NAME):$(RELEASE_VERSION) bash

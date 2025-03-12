@@ -43,17 +43,15 @@ RUN pip install comfy-cli==1.3.7 && \
 # set the workdir
 WORKDIR /
 
-# copy build assets
-COPY builder/requirements.txt /requirements.txt
-
 # install worker python dependencies
+COPY builder/requirements.txt /requirements.txt
 RUN pip install -r requirements.txt --no-cache-dir && \
     rm /requirements.txt
 
 # restore the snapshot
-COPY builder /builder
-RUN chmod +x /builder/start.sh /builder/restore_snapshot.sh
-RUN /builder/restore_snapshot.sh
+COPY /builder/snapshot /builder/snapshot
+RUN chmod +x /builder/snapshot/restore_snapshot.sh && \
+    /builder/snapshot/restore_snapshot.sh
 
 # modifying model paths for comfy
 COPY extra_model_paths.yaml /comfyui
@@ -68,5 +66,7 @@ RUN mkdir -p /usr/local/share/ca-certificates/Yandex && \
 
 # copy source code
 COPY src /src
+
+RUN chmod +x /src/start.sh
 
 CMD ["/src/start.sh"]
