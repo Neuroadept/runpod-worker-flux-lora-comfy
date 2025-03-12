@@ -40,6 +40,7 @@ run-commit-interactive:
 	docker run --env-file $(ENV_FILE) \
 		-v $(strip $(TEST_INPUT_FILE)):/test_input.json:ro \
 		--gpus all \
+		-p 8188:8188 \
 		-it $(FULL_IMAGE_NAME):$(GET_TAG) bash
 
 # Run the release image interactively
@@ -47,6 +48,7 @@ run-release-interactive:
 	docker run --env-file $(ENV_FILE) \
 		-v $(strip $(TEST_INPUT_FILE)):/test_input.json:ro \
 		--gpus all \
+		-p 8188:8188 \
 		-it $(FULL_IMAGE_NAME):$(RELEASE_VERSION) bash
 
 run-dev:
@@ -61,4 +63,5 @@ run-dev-interactive:
 		-v $(strip $(SRC_DIR)):/src:ro \
 		-v $(strip $(TEST_INPUT_FILE)):/test_input.json:ro \
 		--gpus all \
+		-p 8188:8188 \
 		-it $(FULL_IMAGE_NAME):$(RELEASE_VERSION) bash

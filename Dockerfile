@@ -40,27 +40,33 @@ RUN apt-get -qq update && \
 RUN pip install comfy-cli==1.3.7 && \
     comfy --skip-prompt --workspace /comfyui install --cuda-version 12.4 --nvidia --version 0.3.14
 
-# install worker python dependencies
+# set the workdir
 WORKDIR /
+
+# copy build assets
 COPY builder/requirements.txt /requirements.txt
+
+# install worker python dependencies
 RUN pip install -r requirements.txt --no-cache-dir && \
     rm /requirements.txt
 
-# add source code
-ADD src /src
-
 # restore the snapshot
-ADD *snapshot*.json /
-RUN chmod +x /src/start.sh /src/restore_snapshot.sh
-RUN /src/restore_snapshot.sh
+COPY builder /builder
+RUN chmod +x /builder/start.sh /builder/restore_snapshot.sh
+RUN /builder/restore_snapshot.sh
 
 # modifying model paths for comfy
-ADD extra_model_paths.yaml /comfyui
+COPY extra_model_paths.yaml /comfyui
+# comfy manager settings
+COPY /builder/cm_config.ini /comfyui/user/default/ComfyUI-Manager/config.ini
 
-# add yandex ssl
+# download yandex ssl
 RUN mkdir -p /usr/local/share/ca-certificates/Yandex && \
     wget "https://storage.yandexcloud.net/cloud-certs/CA.pem" \
        --output-document /usr/local/share/ca-certificates/Yandex/YandexInternalRootCA.crt && \
     chmod 0655 /usr/local/share/ca-certificates/Yandex/YandexInternalRootCA.crt
+
+# copy source code
+COPY src /src
 
 CMD ["/src/start.sh"]
