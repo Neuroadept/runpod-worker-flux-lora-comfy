@@ -80,14 +80,6 @@ def process_output_images(upload_path: str):
         raise Exception("No inference images generated")
 
 
-def modify_workflow(wf: dict, prompt: str | None, is_img2img: bool):
-    if prompt is not None:
-        wf["6"]["inputs"]["text"] = prompt
-    if is_img2img:
-        wf["41"]["inputs"]["image"] = INPUT_IMG_PATH.name
-    return wf
-
-
 def get_dependencies() -> list[dict[str, str]]:
     deps = [{"path": dep.name, "version": dep.version} for dep in
             importlib.metadata.distributions()]  # type: ignore[attr-defined]

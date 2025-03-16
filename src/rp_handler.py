@@ -12,7 +12,7 @@ from s3_manager import S3Manager
 from comfy_api import check_server, queue_workflow, get_history
 from constants import COMFY_API_AVAILABLE_INTERVAL_MS, COMFY_API_AVAILABLE_MAX_RETRIES, COMFY_POLLING_INTERVAL_MS, \
     COMFY_POLLING_MAX_RETRIES, COMFY_HOST, REFRESH_WORKER, LORAS_DIR, COMFY_OUTPUT_PATH
-from helper_functions import process_output_images, modify_workflow
+from helper_functions import process_output_images
 
 
 def control_refresh(func):
@@ -91,8 +91,6 @@ def handler_main(job, kafka_manager: KafkaManager):
     upload_path = job_input["upload_path"]
     lora_download_path = job_input["lora_download_path"]
     lora_name = job_input["lora_name"]
-
-    workflow = modify_workflow(workflow, prompt, image_s3_path is not None)
 
     # Make sure that the ComfyUI API is available
     check_server(
