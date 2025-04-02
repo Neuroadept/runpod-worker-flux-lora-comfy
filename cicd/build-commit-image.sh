@@ -10,9 +10,9 @@ if [ -z "$COMMIT_HASH" ]; then
 fi
 
 # Define the Docker image name and tag
-IMAGE_NAME="runpod-worker-flux-lora-comfy"
+IMAGE_NAME="comfy"
 TAG="${COMMIT_HASH}"
-REGISTRY="gfx73"
+REGISTRY="neuroproduction"
 
 # Build the Docker image
 echo "Building Docker image ${REGISTRY}/${IMAGE_NAME}:${TAG}..."

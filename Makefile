@@ -1,6 +1,6 @@
 # Define variables
-IMAGE_NAME := runpod-worker-flux-lora-comfy
-REGISTRY := gfx73/ # Optional, set if pushing to a registry
+IMAGE_NAME := comfy
+REGISTRY := neuroproduction/ # Optional, set if pushing to a registry
 ENV_FILE := $(shell pwd)/.env # Absolute path to the .env file
 TEST_INPUT_FILE := $(strip $(shell pwd))/test_input.json # Absolute path to the test input file
 SRC_DIR := $(strip $(shell pwd))/src

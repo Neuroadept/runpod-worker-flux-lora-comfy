@@ -19,8 +19,8 @@ NEW_VERSION="${major}.${minor}.${patch}"
 echo "$NEW_VERSION" > "$VERSION_FILE"
 
 # Define the Docker image name and tag
-IMAGE_NAME="runpod-worker-flux-lora-comfy"
-REGISTRY="gfx73"
+IMAGE_NAME="comfy"
+REGISTRY="neuroproduction"
 TAG="$NEW_VERSION"
 
 # Build the Docker image
